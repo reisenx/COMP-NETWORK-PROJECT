@@ -2,13 +2,22 @@
   "name": "comp-network-project",
   "version": "1.0.0",
   "description": "realtime chat",
+  "homepage": "https://github.com/reisenx/COMP-NETWORK-PROJECT#readme",
+  "bugs": {
+    "url": "https://github.com/reisenx/COMP-NETWORK-PROJECT/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reisenx/COMP-NETWORK-PROJECT.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
   "main": "server.js",
   "scripts": {
     "start": "node server",
     "dev": "nodemon server"
   },
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "express": "^5.1.0",
     "moment": "^2.30.1",
