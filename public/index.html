@@ -31,16 +31,22 @@
 						/>
 					</div>
 					<div class="form-control">
-						<label for="room">Room</label>
-						<select name="room" id="room">
-							<option value="JavaScript">JavaScript</option>
-							<option value="Python">Python</option>
-							<option value="PHP">PHP</option>
-							<option value="C#">C#</option>
-							<option value="Ruby">Ruby</option>
-							<option value="Java">Java</option>
-						</select>
-					</div>
+                        <label for="room">Room</label>
+                        <input
+                            type="text"
+                            name="room"
+                            id="room"
+                            placeholder="Select or create a room..."
+                            required
+                            list="room-suggestions" 
+                        />
+                        <datalist id="room-suggestions">
+                            <option value="Thai"></option>
+                            <option value="USA"></option>
+                            <option value="China"></option>
+                            <option value="Chula"></option>
+                        </datalist>
+                    </div>
 					<button type="submit" class="btn">Join Chat</button>
 				</form>
 			</main>

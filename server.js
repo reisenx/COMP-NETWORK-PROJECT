@@ -4,7 +4,7 @@ const express = require('express');
 const socketio = require('socket.io');
 const formatMessage = require('./utils/message');
 const {userJoin , getCurrentUser, userLeave} = require('./utils/user');
-const {getRoomUsers} = require('./utils/user');
+const {getRoomUsers , getAllUsers} = require('./utils/user');
 
 const app = express();
 const server = http.createServer(app);
@@ -34,6 +34,11 @@ io.on('connection', socket => {
             botname
             , user.username + ' has joined the chat'
         ));
+        // send all users to everyuser
+        io.emit('allUsers', {
+            users: getAllUsers() 
+        });
+
         // send users and room info
         io.to(user.room).emit('roomUsers',{
             room: user.room,
@@ -58,7 +63,11 @@ io.on('connection', socket => {
             io.to(user.room).emit('roomUsers',{
                 room: user.room,
                 users: getRoomUsers(user.room)
-        });
+            });
+            io.emit('allUsers', {
+                users: getAllUsers()
+            });
+        
         }
 });
 
