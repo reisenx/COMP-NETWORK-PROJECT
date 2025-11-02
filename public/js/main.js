@@ -12,6 +12,13 @@ const {username , room} = Qs.parse(location.search,{
 
 
 const socket = io();
+
+// Handle duplicate username
+socket.on('joinError', (errorMessage) => {
+  alert(errorMessage);
+  window.location.href = 'index.html';
+});
+
 //Join chat room
 socket.emit('joinRoom' , {username,room})
 
