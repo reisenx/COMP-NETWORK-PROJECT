@@ -19,6 +19,14 @@ const {
   getGroupMembers,
   isGroupMember
 } = require('./utils/groups');
+const {
+  addRoomMessage,
+  addPrivateMessage,
+  addGroupMessage,
+  getRoomHistory,
+  getPrivateHistory,
+  getGroupHistory
+} = require('./utils/messageHistory');
 
 const app = express();
 const server = http.createServer(app);
@@ -29,6 +37,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
 const botname = 'Slave Bot';
+
+// Track join times for private chats (socketId + otherUsername -> joinTime)
+const privateChatJoinTimes = new Map();
 
 // Run when client connects
 io.on('connection', (socket) => {
@@ -45,14 +56,23 @@ io.on('connection', (socket) => {
     const user = result; // valid user object
     socket.join(user.room);
 
+    // Send chat history for this room (only messages after user joined)
+    const roomHistory = getRoomHistory(user.room, user.joinTime);
+    if (roomHistory.length > 0) {
+      socket.emit('roomHistory', { room: user.room, messages: roomHistory });
+    }
+
     // Welcome current user
-    socket.emit('message', formatMessage(botname, 'Welcome to ComNetwork Project'));
+    const welcomeMsg = formatMessage(botname, 'Welcome to ComNetwork Project');
+    socket.emit('message', welcomeMsg);
     console.log(`${user.username} has joined the chat`);
 
     // Broadcast when a user connects (to others in the room)
-    socket.broadcast
-      .to(user.room)
-      .emit('message', formatMessage(botname, `${user.username} has joined the chat`));
+    const joinMsg = formatMessage(botname, `${user.username} has joined the chat`);
+    socket.broadcast.to(user.room).emit('message', joinMsg);
+    
+    // Save join message to history
+    addRoomMessage(user.room, botname, `${user.username} has joined the chat`);
 
     // Send room users to that room
     io.to(user.room).emit('roomUsers', {
@@ -74,7 +94,8 @@ io.on('connection', (socket) => {
       socket.emit('joinError', 'You are not in a room');
       return;
     }
-    io.to(user.room).emit('message', formatMessage(user.username, msg));
+    const formattedMessage = addRoomMessage(user.room, user.username, msg);
+    io.to(user.room).emit('message', formattedMessage);
   });
 
   // R7: Private message handler
@@ -101,10 +122,13 @@ io.on('connection', (socket) => {
     // Create private room name (sorted to ensure consistency)
     const privateRoom = [sender.username, receiver.username].sort().join('_pm_');
     
+    // Save message to history
+    const formattedMessage = addPrivateMessage(sender.username, receiver.username, sender.username, message);
+    
     // Send to receiver
     io.to(receiver.id).emit('privateMessage', {
       from: sender.username,
-      message: formatMessage(sender.username, message),
+      message: formattedMessage,
       room: privateRoom
     });
 
@@ -112,8 +136,24 @@ io.on('connection', (socket) => {
     socket.emit('privateMessage', {
       from: sender.username,
       to: receiver.username,
-      message: formatMessage(sender.username, message),
+      message: formattedMessage,
       room: privateRoom
+    });
+  });
+
+  // Request private chat history
+  socket.on('requestPrivateHistory', ({ otherUsername }) => {
+    const user = getCurrentUser(socket.id);
+    if (!user) {
+      socket.emit('joinError', 'You are not in a room');
+      return;
+    }
+    
+    // Private chats show ALL messages (no filtering by join time)
+    const history = getPrivateHistory(user.username, otherUsername);
+    socket.emit('privateHistory', { 
+      otherUsername, 
+      messages: history 
     });
   });
 
@@ -132,12 +172,12 @@ io.on('connection', (socket) => {
     }
 
     // Join socket to group room
-    socket.join(`group_${result.name}`);
+    socket.join(`group_${result.group.name}`);
     
     // Notify all clients about the new group
     io.emit('allGroups', { groups: getAllGroups() });
     
-    socket.emit('groupCreated', { group: result });
+    socket.emit('groupCreated', { group: result.group, joinTime: result.joinTime });
   });
 
   // R9: Get all groups (already handled on connection, but can be requested)
@@ -160,14 +200,14 @@ io.on('connection', (socket) => {
     }
 
     // Join socket to group room
-    socket.join(`group_${result.name}`);
+    socket.join(`group_${result.group.name}`);
     
     // Notify group members
-    result.members.forEach(member => {
+    result.group.members.forEach(member => {
       const memberUser = getAllUsers().find(u => u.username === member.username);
       if (memberUser) {
         io.to(memberUser.id).emit('groupJoined', {
-          groupName: result.name,
+          groupName: result.group.name,
           username: user.username
         });
       }
@@ -176,7 +216,7 @@ io.on('connection', (socket) => {
     // Update all clients with group list
     io.emit('allGroups', { groups: getAllGroups() });
     
-    socket.emit('groupJoinedSuccess', { group: result });
+    socket.emit('groupJoinedSuccess', { group: result.group, joinTime: result.joinTime });
   });
 
   // R11: Group message handler
@@ -192,15 +232,50 @@ io.on('connection', (socket) => {
       return;
     }
 
+    // Save message to history
+    const formattedMessage = addGroupMessage(groupName, user.username, message);
+
     // Send message to all group members
     io.to(`group_${groupName}`).emit('groupMessage', {
       groupName,
-      message: formatMessage(user.username, message)
+      message: formattedMessage
+    });
+  });
+
+  // Request group chat history
+  socket.on('requestGroupHistory', ({ groupName }) => {
+    const user = getCurrentUser(socket.id);
+    if (!user) {
+      socket.emit('groupError', 'You are not in a room');
+      return;
+    }
+    if (!isGroupMember(groupName, socket.id)) {
+      socket.emit('groupError', 'You are not a member of this group');
+      return;
+    }
+    
+    // Get user's join time for this group
+    const group = getGroup(groupName);
+    const member = group.members.find(m => m.id === socket.id);
+    const joinTime = member ? (member.joinTime || Date.now()) : Date.now();
+    
+    // Only get messages sent after user joined the group
+    const history = getGroupHistory(groupName, joinTime);
+    socket.emit('groupHistory', { 
+      groupName, 
+      messages: history 
     });
   });
 
   // Runs when client disconnects
   socket.on('disconnect', () => {
+    // Clean up private chat join times for this socket
+    for (const [key, value] of privateChatJoinTimes.entries()) {
+      if (key.startsWith(`${socket.id}_`)) {
+        privateChatJoinTimes.delete(key);
+      }
+    }
+    
     const user = userLeave(socket.id);
     if (!user) return;
 

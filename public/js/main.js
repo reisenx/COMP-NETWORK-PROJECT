@@ -40,6 +40,26 @@ socket.on('joinError', (errorMessage) => {
 //Join chat room
 socket.emit('joinRoom' , {username,room})
 
+//Get room history when joining
+socket.on('roomHistory', ({ room, messages }) => {
+    if (room === currentChat.name && currentChat.type === 'room') {
+        // Load history into active chats
+        const chatId = `room_${room}`;
+        if (!activeChats.has(chatId)) {
+            activeChats.set(chatId, {
+                type: 'room',
+                name: room,
+                messages: []
+            });
+        }
+        activeChats.get(chatId).messages = messages;
+        // Display messages
+        chatMessages.innerHTML = '';
+        messages.forEach(msg => outputMessage(msg));
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+});
+
 //Get room and users
 socket.on('roomUsers', ({ room, users }) => {
     outputRoomName(room);
@@ -58,6 +78,17 @@ socket.on('message', message => {
     if (currentChat.type === 'room' && currentChat.name === room) {
         outputMessage(message);
         chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // Store in active chats
+        const chatId = `room_${room}`;
+        if (!activeChats.has(chatId)) {
+            activeChats.set(chatId, {
+                type: 'room',
+                name: room,
+                messages: []
+            });
+        }
+        activeChats.get(chatId).messages.push(message);
     }
 });
 
@@ -90,6 +121,31 @@ socket.on('privateMessage', ({ from, to, message, room: pmRoom }) => {
 
 socket.on('privateMessageError', (error) => {
     alert(error);
+});
+
+// Private chat history
+socket.on('privateHistory', ({ otherUsername, messages }) => {
+    const chatId = getChatId({
+        type: 'private',
+        name: `Private: ${otherUsername}`,
+        target: otherUsername
+    });
+    
+    if (!activeChats.has(chatId)) {
+        activeChats.set(chatId, {
+            type: 'private',
+            name: otherUsername,
+            messages: []
+        });
+    }
+    activeChats.get(chatId).messages = messages;
+    
+    // Display if this is the current chat
+    if (currentChat.type === 'private' && currentChat.target === otherUsername) {
+        chatMessages.innerHTML = '';
+        messages.forEach(msg => outputMessage(msg));
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
 });
 
 // R8, R9: Groups handlers
@@ -202,6 +258,27 @@ socket.on('groupError', (error) => {
         if (groupName) {
             userGroups.delete(groupName);
         }
+    }
+});
+
+// Group chat history
+socket.on('groupHistory', ({ groupName, messages }) => {
+    const chatId = `group_${groupName}`;
+    
+    if (!activeChats.has(chatId)) {
+        activeChats.set(chatId, {
+            type: 'group',
+            name: groupName,
+            messages: []
+        });
+    }
+    activeChats.get(chatId).messages = messages;
+    
+    // Display if this is the current chat
+    if (currentChat.type === 'group' && currentChat.name === groupName) {
+        chatMessages.innerHTML = '';
+        messages.forEach(msg => outputMessage(msg));
+        chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 });
 
@@ -337,10 +414,16 @@ function switchToPrivateChat(targetUsername) {
             messages: []
         });
         updateActiveChatsList();
+        // Request history from server
+        socket.emit('requestPrivateHistory', { otherUsername: targetUsername });
+    } else {
+        // Load from local cache first, then request from server to sync
+        updateChatContext();
+        loadChatHistory(currentChat);
+        socket.emit('requestPrivateHistory', { otherUsername: targetUsername });
     }
     
     updateChatContext();
-    loadChatHistory(currentChat);
 }
 
 // Switch to room chat
@@ -377,10 +460,16 @@ function switchToGroupChat(groupName) {
             messages: []
         });
         updateActiveChatsList();
+        // Request history from server
+        socket.emit('requestGroupHistory', { groupName: groupName });
+    } else {
+        // Load from local cache first, then request from server to sync
+        updateChatContext();
+        loadChatHistory(currentChat);
+        socket.emit('requestGroupHistory', { groupName: groupName });
     }
     
     updateChatContext();
-    loadChatHistory(currentChat);
 }
 
 // Update chat context display

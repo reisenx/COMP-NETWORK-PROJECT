@@ -50,8 +50,9 @@ function userJoin(id, username, room) {
     }
   }
   
-  // Add the new user
-  const user = { id, username: name, room: roomName, _key: key };
+  // Add the new user with join timestamp
+  const joinTime = Date.now();
+  const user = { id, username: name, room: roomName, _key: key, joinTime };
   users.push(user);
   usernames.add(key);
   console.log(`[USER JOINED] Username: "${name}" (key: "${key}"), Socket: ${id}, Total users: ${users.length}, Usernames in Set: ${usernames.size}`);

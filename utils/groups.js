@@ -10,14 +10,15 @@ function createGroup(groupName, creatorUsername, creatorId) {
     return { error: "Group name already exists" };
   }
   
+  const joinTime = Date.now();
   const group = {
     name: name,
-    members: [{ username: creatorUsername, id: creatorId }],
+    members: [{ username: creatorUsername, id: creatorId, joinTime }],
     createdAt: new Date()
   };
   
   groups.push(group);
-  return group;
+  return { group, joinTime };
 }
 
 function getAllGroups() {
@@ -38,12 +39,16 @@ function joinGroup(groupName, username, userId) {
   if (!group) return { error: "Group not found" };
   
   // Check if user is already a member
-  if (group.members.find(m => m.id === userId)) {
-    return { error: "You are already a member of this group" };
+  const existingMember = group.members.find(m => m.id === userId);
+  if (existingMember) {
+    // User is already a member, return their join time
+    return { group, joinTime: existingMember.joinTime || Date.now() };
   }
   
-  group.members.push({ username, id: userId });
-  return group;
+  // Add member with join timestamp
+  const joinTime = Date.now();
+  group.members.push({ username, id: userId, joinTime });
+  return { group, joinTime };
 }
 
 function leaveGroup(groupName, userId) {
