@@ -33,7 +33,8 @@ const botname = 'Slave Bot';
 // Run when client connects
 io.on('connection', (socket) => {
   socket.on('joinRoom', ({ username, room }) => {
-    // Call your helper (it returns user OR {error})
+    // userJoin() handles removing existing users with the same socket.id internally
+    // Now check for duplicate username and add new user
     const result = userJoin(socket.id, username, room);
     if (result && result.error) {
       // Tell the client and stop here
