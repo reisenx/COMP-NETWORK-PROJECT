@@ -25,6 +25,18 @@
          <h3><i class="fas fa-globe"></i> All Online Users</h3>
         <ul id="all-users">
             </ul>
+
+        <h3><i class="fas fa-user-friends"></i> Chat Groups</h3>
+        <div class="group-controls">
+          <input type="text" id="new-group-name" placeholder="New group name..." />
+          <button id="create-group-btn" class="btn-small">Create</button>
+        </div>
+        <ul id="groups-list">
+        </ul>
+
+        <h3><i class="fas fa-inbox"></i> Active Chats</h3>
+        <ul id="active-chats">
+        </ul>
       </div>
 
       <div class="chat-messages">
@@ -32,6 +44,10 @@
 
     </main>
     <div class="chat-form-container">
+      <div id="chat-context" class="chat-context">
+        <span id="current-chat-type">Room Chat</span>
+        <span id="current-chat-name"></span>
+      </div>
       <form id="chat-form">
         <input
           id="msg"

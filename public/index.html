@@ -28,7 +28,11 @@
 							id="username"
 							placeholder="Enter username..."
 							required
+							maxlength="20"
+							pattern=".{1,20}"
+							title="Username must be 1-20 characters"
 						/>
+						<small class="form-hint">Username must be unique and 1-20 characters</small>
 					</div>
 					<div class="form-control">
                         <label for="room">Room</label>
@@ -51,5 +55,51 @@
 				</form>
 			</main>
 		</div>
+		<script>
+			// Client-side validation
+			const form = document.querySelector('form');
+			const usernameInput = document.getElementById('username');
+			
+			form.addEventListener('submit', (e) => {
+				const username = usernameInput.value.trim();
+				
+				// Validate username
+				if (!username) {
+					e.preventDefault();
+					alert('Username is required');
+					return false;
+				}
+				
+				if (username.length > 20) {
+					e.preventDefault();
+					alert('Username must be 20 characters or less');
+					return false;
+				}
+				
+				if (username.includes('  ')) {
+					e.preventDefault();
+					alert('Username cannot contain consecutive spaces');
+					return false;
+				}
+				
+				// Validate room
+				const room = document.getElementById('room').value.trim();
+				if (!room) {
+					e.preventDefault();
+					alert('Room is required');
+					return false;
+				}
+			});
+			
+			// Real-time validation feedback
+			usernameInput.addEventListener('input', (e) => {
+				const value = e.target.value.trim();
+				if (value.length > 20) {
+					e.target.setCustomValidity('Username must be 20 characters or less');
+				} else {
+					e.target.setCustomValidity('');
+				}
+			});
+		</script>
 	</body>
 </html>

@@ -102,7 +102,7 @@ a {
 	padding: 10px;
 	margin-bottom: 15px;
 	background-color: var(--light-color);
-	border-radius: 5px;
+	border-radius: 12px;
 }
 
 .chat-messages .message .meta {
@@ -170,6 +170,14 @@ a {
 	margin-bottom: 5px;
 }
 
+.join-main .form-hint {
+	display: block;
+	margin-top: 5px;
+	font-size: 12px;
+	opacity: 0.7;
+	color: rgba(255, 255, 255, 0.8);
+}
+
 .join-main input[type='text'] {
 	font-size: 16px;
 	padding: 5px;
@@ -187,6 +195,93 @@ a {
 .join-main .btn {
 	margin-top: 20px;
 	width: 100%;
+}
+
+/* Group controls */
+.group-controls {
+	margin-bottom: 15px;
+	display: flex;
+	gap: 8px;
+}
+
+.group-controls input {
+	flex: 1;
+	padding: 5px;
+	height: 32px;
+	font-size: 14px;
+	border-radius: 4px;
+	border: none;
+}
+
+.btn-small {
+	cursor: pointer;
+	padding: 4px 10px;
+	background: var(--light-color);
+	color: var(--dark-color-a);
+	border: 0;
+	font-size: 12px;
+	border-radius: 4px;
+	white-space: nowrap;
+}
+
+.btn-small:hover {
+	background: #e0e0e0;
+}
+
+/* Group items */
+.group-item {
+	padding: 10px;
+	margin-bottom: 10px;
+	background: rgba(0, 0, 0, 0.1);
+	border-radius: 5px;
+}
+
+.group-item div {
+	margin-bottom: 4px;
+}
+
+/* Clickable users */
+.clickable-user {
+	cursor: pointer;
+	transition: background-color 0.2s;
+	padding: 5px;
+	border-radius: 3px;
+}
+
+.clickable-user:hover {
+	background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Active chats */
+.active-chat-item {
+	padding: 8px;
+	margin-bottom: 5px;
+	border-radius: 4px;
+	transition: background-color 0.2s;
+}
+
+.active-chat-item:hover {
+	background-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Chat context */
+.chat-context {
+	padding: 10px 20px;
+	background: rgba(0, 0, 0, 0.2);
+	color: #fff;
+	font-size: 14px;
+	display: flex;
+	gap: 10px;
+	align-items: center;
+}
+
+.chat-context span {
+	font-weight: bold;
+}
+
+#current-chat-name {
+	font-weight: normal;
+	opacity: 0.9;
 }
 
 @media (max-width: 700px) {
