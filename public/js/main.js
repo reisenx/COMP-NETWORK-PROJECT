@@ -75,12 +75,13 @@ socket.on('allUsers', ({ users }) => {
 
 // Message from server (room messages)
 socket.on('message', message => {
+    const chatId = `room_${room}`;
+    
     if (currentChat.type === 'room' && currentChat.name === room) {
         outputMessage(message);
         chatMessages.scrollTop = chatMessages.scrollHeight;
         
         // Store in active chats
-        const chatId = `room_${room}`;
         if (!activeChats.has(chatId)) {
             activeChats.set(chatId, {
                 type: 'room',
@@ -89,6 +90,17 @@ socket.on('message', message => {
             });
         }
         activeChats.get(chatId).messages.push(message);
+    } else {
+        // Store message but show notification
+        if (!activeChats.has(chatId)) {
+            activeChats.set(chatId, {
+                type: 'room',
+                name: room,
+                messages: []
+            });
+        }
+        activeChats.get(chatId).messages.push(message);
+        showChatNotification(chatId, room, message.message, message.username);
     }
 });
 
@@ -115,7 +127,7 @@ socket.on('privateMessage', ({ from, to, message, room: pmRoom }) => {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     } else {
         // Show notification
-        showChatNotification(chatId, otherUser, message.message);
+        showChatNotification(chatId, otherUser, message.message, from);
     }
 });
 
@@ -245,7 +257,7 @@ socket.on('groupMessage', ({ groupName, message }) => {
         outputMessage(message);
         chatMessages.scrollTop = chatMessages.scrollHeight;
     } else {
-        showChatNotification(chatId, groupName, message.message);
+        showChatNotification(chatId, groupName, message.message, message.username);
     }
 });
 
@@ -381,8 +393,21 @@ function outputUserList(users, element) {
         li.innerText = user.username;
         li.setAttribute('data-username', user.username);
         li.classList.add('clickable-user');
+        
+        // Set chat ID for badge tracking (only for all users list, not room users)
+        if (element === allUserList && user.username !== username) {
+            const sorted = [username, user.username].sort();
+            const chatId = `${sorted[0]}_pm_${sorted[1]}`;
+            li.setAttribute('data-chat-id', chatId);
+        }
+        
         element.appendChild(li);
     });
+    
+    // Update badges after creating user list
+    if (element === allUserList) {
+        setTimeout(() => updateUnreadBadges(), 0);
+    }
 }
 
 // Make users clickable for private messages (R7)
@@ -407,6 +432,10 @@ function switchToPrivateChat(targetUsername) {
     };
     
     const chatId = getChatId(currentChat);
+    
+    // Clear unread count when switching to this chat
+    clearUnreadCount(chatId);
+    
     if (!activeChats.has(chatId)) {
         activeChats.set(chatId, {
             type: 'private',
@@ -433,6 +462,11 @@ function switchToRoomChat() {
         name: room,
         target: null
     };
+    
+    // Clear unread count when switching to this chat
+    const chatId = getChatId(currentChat);
+    clearUnreadCount(chatId);
+    
     updateChatContext();
     loadChatHistory(currentChat);
 }
@@ -453,6 +487,10 @@ function switchToGroupChat(groupName) {
     };
     
     const chatId = getChatId(currentChat);
+    
+    // Clear unread count when switching to this chat
+    clearUnreadCount(chatId);
+    
     if (!activeChats.has(chatId)) {
         activeChats.set(chatId, {
             type: 'group',
@@ -501,6 +539,7 @@ function outputGroupsList(groups) {
     groups.forEach(group => {
         const li = document.createElement('li');
         li.classList.add('group-item');
+        li.setAttribute('data-chat-id', `group_${group.name}`);
         
         const groupNameDiv = document.createElement('div');
         groupNameDiv.textContent = group.name;
@@ -549,6 +588,9 @@ function outputGroupsList(groups) {
         li.appendChild(viewBtn);
         groupsList.appendChild(li);
     });
+    
+    // Update badges after creating groups
+    setTimeout(() => updateUnreadBadges(), 0);
 }
 
 // Update active chats list
@@ -557,8 +599,10 @@ function updateActiveChatsList() {
     
     // Add room chat
     const roomLi = document.createElement('li');
-    roomLi.textContent = `Room: ${room}`;
+    const roomText = document.createTextNode(`Room: ${room}`);
+    roomLi.appendChild(roomText);
     roomLi.classList.add('active-chat-item');
+    roomLi.setAttribute('data-chat-id', `room_${room}`);
     roomLi.style.cursor = 'pointer';
     if (currentChat.type === 'room') {
         roomLi.style.backgroundColor = 'rgba(255,255,255,0.2)';
@@ -570,8 +614,10 @@ function updateActiveChatsList() {
     activeChats.forEach((chatData, chatId) => {
         if (chatData.type === 'private') {
             const li = document.createElement('li');
-            li.textContent = `Private: ${chatData.name}`;
+            const privateText = document.createTextNode(`Private: ${chatData.name}`);
+            li.appendChild(privateText);
             li.classList.add('active-chat-item');
+            li.setAttribute('data-chat-id', chatId);
             li.style.cursor = 'pointer';
             if (currentChat.type === 'private' && currentChat.target === chatData.name) {
                 li.style.backgroundColor = 'rgba(255,255,255,0.2)';
@@ -585,8 +631,10 @@ function updateActiveChatsList() {
     activeChats.forEach((chatData, chatId) => {
         if (chatData.type === 'group') {
             const li = document.createElement('li');
-            li.textContent = `Group: ${chatData.name}`;
+            const groupText = document.createTextNode(`Group: ${chatData.name}`);
+            li.appendChild(groupText);
             li.classList.add('active-chat-item');
+            li.setAttribute('data-chat-id', chatId);
             li.style.cursor = 'pointer';
             if (currentChat.type === 'group' && currentChat.name === chatData.name) {
                 li.style.backgroundColor = 'rgba(255,255,255,0.2)';
@@ -595,13 +643,214 @@ function updateActiveChatsList() {
             activeChatsList.appendChild(li);
         }
     });
+    
+    // Update badges after adding all items
+    setTimeout(() => updateUnreadBadges(), 0);
 }
 
-// Show chat notification
-function showChatNotification(chatId, chatName, messagePreview) {
-    // You can implement a more sophisticated notification system here
-    console.log(`New message in ${chatName}: ${messagePreview}`);
+// ==================== NOTIFICATION SYSTEM ====================
+
+// Notification settings (stored in localStorage)
+let notificationSettings = {
+    browser: true,
+    sound: true,
+    enabled: true
+};
+
+// Load notification settings from localStorage
+function loadNotificationSettings() {
+    const saved = localStorage.getItem('notificationSettings');
+    if (saved) {
+        notificationSettings = { ...notificationSettings, ...JSON.parse(saved) };
+    }
 }
+
+// Save notification settings to localStorage
+function saveNotificationSettings() {
+    localStorage.setItem('notificationSettings', JSON.stringify(notificationSettings));
+}
+
+// Track unread messages per chat
+const unreadCounts = new Map(); // chatId -> count
+
+// Request notification permission on page load
+function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                console.log('Notification permission granted');
+            }
+        });
+    }
+}
+
+// Check if page is focused
+function isPageFocused() {
+    return document.hasFocus();
+}
+
+// Play notification sound
+function playNotificationSound() {
+    if (!notificationSettings.sound) return;
+    
+    try {
+        // Create a simple beep sound using Web Audio API
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.2);
+    } catch (e) {
+        console.log('Could not play notification sound:', e);
+    }
+}
+
+// Show browser notification
+function showBrowserNotification(chatName, messagePreview, senderName) {
+    if (!notificationSettings.browser || !notificationSettings.enabled) return;
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+    
+    // Only show notification if page is not focused
+    if (isPageFocused()) return;
+    
+    const title = `New message from ${senderName || chatName}`;
+    const body = messagePreview.length > 100 ? messagePreview.substring(0, 100) + '...' : messagePreview;
+    
+    const notification = new Notification(title, {
+        body: body,
+        icon: '/favicon.ico', // You can add a favicon later
+        badge: '/favicon.ico',
+        tag: chatName, // Group notifications by chat
+        requireInteraction: false
+    });
+    
+    // Auto-close notification after 5 seconds
+    setTimeout(() => {
+        notification.close();
+    }, 5000);
+    
+    // Click notification to focus window
+    notification.onclick = () => {
+        window.focus();
+        notification.close();
+    };
+}
+
+// Increment unread count for a chat
+function incrementUnreadCount(chatId) {
+    const current = unreadCounts.get(chatId) || 0;
+    unreadCounts.set(chatId, current + 1);
+    updateUnreadBadges();
+}
+
+// Clear unread count for a chat
+function clearUnreadCount(chatId) {
+    unreadCounts.delete(chatId);
+    updateUnreadBadges();
+}
+
+// Update unread badges in UI
+function updateUnreadBadges() {
+    // Update active chats list
+    activeChatsList.querySelectorAll('.active-chat-item').forEach(item => {
+        const chatId = item.getAttribute('data-chat-id');
+        if (!chatId) return;
+        
+        const count = unreadCounts.get(chatId) || 0;
+        let badge = item.querySelector('.unread-badge');
+        
+        if (count > 0) {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'unread-badge';
+                item.appendChild(badge);
+            }
+            badge.textContent = count > 99 ? '99+' : count;
+        } else if (badge) {
+            badge.remove();
+        }
+    });
+    
+    // Update groups list
+    groupsList.querySelectorAll('.group-item').forEach(item => {
+        const chatId = item.getAttribute('data-chat-id');
+        if (!chatId) {
+            // Fallback: try to get from group name
+            const groupNameDiv = item.querySelector('div');
+            if (groupNameDiv) {
+                const groupName = groupNameDiv.textContent.trim();
+                const computedChatId = `group_${groupName}`;
+                item.setAttribute('data-chat-id', computedChatId);
+                updateBadgeForItem(item, computedChatId);
+            }
+        } else {
+            updateBadgeForItem(item, chatId);
+        }
+    });
+    
+    // Update all users list (for private chats)
+    allUserList.querySelectorAll('.clickable-user').forEach(item => {
+        const targetUsername = item.getAttribute('data-username');
+        if (targetUsername && targetUsername !== username) {
+            const sorted = [username, targetUsername].sort();
+            const chatId = `${sorted[0]}_pm_${sorted[1]}`;
+            item.setAttribute('data-chat-id', chatId);
+            updateBadgeForItem(item, chatId);
+        }
+    });
+}
+
+// Helper function to update badge for an item
+function updateBadgeForItem(item, chatId) {
+    const count = unreadCounts.get(chatId) || 0;
+    let badge = item.querySelector('.unread-badge');
+    
+    if (count > 0) {
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'unread-badge';
+            item.appendChild(badge);
+        }
+        badge.textContent = count > 99 ? '99+' : count;
+    } else if (badge) {
+        badge.remove();
+    }
+}
+
+// Show chat notification (comprehensive)
+function showChatNotification(chatId, chatName, messagePreview, senderName) {
+    if (!notificationSettings.enabled) return;
+    
+    // Don't show notification if this is the current active chat
+    const currentChatId = getChatId(currentChat);
+    if (chatId === currentChatId && isPageFocused()) {
+        return; // User is viewing this chat, no need to notify
+    }
+    
+    // Increment unread count
+    incrementUnreadCount(chatId);
+    
+    // Play sound
+    playNotificationSound();
+    
+    // Show browser notification
+    showBrowserNotification(chatName, messagePreview, senderName);
+}
+
+// Initialize notification system
+loadNotificationSettings();
+requestNotificationPermission();
 
 // Initialize
 updateChatContext();
@@ -638,4 +887,36 @@ function updateIcon(theme) {
             themeIcon.classList.add('fa-moon');
         }
     }
+}
+
+// Notification toggle functionality
+const notificationToggle = document.getElementById('notification-toggle');
+const notificationIcon = document.getElementById('notification-icon');
+
+function updateNotificationIcon() {
+    if (notificationIcon) {
+        if (notificationSettings.enabled) {
+            notificationIcon.classList.remove('fa-bell-slash');
+            notificationIcon.classList.add('fa-bell');
+            notificationToggle.title = 'Disable notifications';
+        } else {
+            notificationIcon.classList.remove('fa-bell');
+            notificationIcon.classList.add('fa-bell-slash');
+            notificationToggle.title = 'Enable notifications';
+        }
+    }
+}
+
+if (notificationToggle) {
+    notificationToggle.addEventListener('click', () => {
+        notificationSettings.enabled = !notificationSettings.enabled;
+        saveNotificationSettings();
+        updateNotificationIcon();
+        
+        if (notificationSettings.enabled) {
+            // Request permission if not already granted
+            requestNotificationPermission();
+        }
+    });
+    updateNotificationIcon();
 }
