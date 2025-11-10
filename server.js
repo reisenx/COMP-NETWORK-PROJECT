@@ -8,7 +8,10 @@ const {
   getCurrentUser,
   userLeave,
   getRoomUsers,
-  getAllUsers
+  getAllUsers,
+  getUserTheme,
+  hasUserTheme,
+  setUserTheme
 } = require('./utils/user');
 const {
   createGroup,
@@ -43,7 +46,7 @@ const privateChatJoinTimes = new Map();
 
 // Run when client connects
 io.on('connection', (socket) => {
-  socket.on('joinRoom', ({ username, room }) => {
+  socket.on('joinRoom', ({ username, room, theme }) => {
     // userJoin() handles removing existing users with the same socket.id internally
     // Now check for duplicate username and add new user
     const result = userJoin(socket.id, username, room);
@@ -54,6 +57,28 @@ io.on('connection', (socket) => {
     }
 
     const user = result; // valid user object
+    
+    // Get existing theme preference from server (user-specific)
+    let userTheme;
+    
+    // Check if user already has a saved theme preference
+    if (hasUserTheme(user.username)) {
+      // User has a saved theme, use it (ignore any theme they send)
+      userTheme = getUserTheme(user.username);
+      console.log(`[THEME] User ${user.username} has saved theme: ${userTheme}`);
+    } else {
+      // User has no saved theme, use the one they sent or default to light
+      if (theme && (theme === 'light' || theme === 'dark')) {
+        setUserTheme(user.username, theme);
+        userTheme = theme;
+        console.log(`[THEME] Setting new theme for ${user.username}: ${theme}`);
+      } else {
+        userTheme = 'light';
+        setUserTheme(user.username, userTheme);
+        console.log(`[THEME] Setting default theme for ${user.username}: light`);
+      }
+    }
+    
     socket.join(user.room);
 
     // Send chat history for this room (only messages after user joined)
@@ -85,6 +110,10 @@ io.on('connection', (socket) => {
     
     // Send all groups to the new user
     socket.emit('allGroups', { groups: getAllGroups() });
+    
+    // Send user's theme preference from server (userTheme was already set above)
+    socket.emit('themePreference', { theme: userTheme });
+    console.log(`[THEME] Sent theme preference "${userTheme}" to user ${user.username}`);
   });
 
   // Listen for room chat messages (R6)
@@ -240,6 +269,17 @@ io.on('connection', (socket) => {
       groupName,
       message: formattedMessage
     });
+  });
+
+  // Handle theme change from client
+  socket.on('changeTheme', ({ theme }) => {
+    const user = getCurrentUser(socket.id);
+    if (user && (theme === 'light' || theme === 'dark')) {
+      setUserTheme(user.username, theme);
+      console.log(`[THEME] User ${user.username} changed theme to ${theme}`);
+      // Confirm the change back to client
+      socket.emit('themePreference', { theme: theme });
+    }
   });
 
   // Request group chat history

@@ -37,8 +37,14 @@ socket.on('joinError', (errorMessage) => {
   window.location.href = 'index.html';
 });
 
-//Join chat room
-socket.emit('joinRoom' , {username,room})
+//Join chat room - send current theme preference if available
+const pendingTheme = sessionStorage.getItem('pendingTheme');
+const themeToSend = pendingTheme || 'light';
+socket.emit('joinRoom' , {username, room, theme: themeToSend});
+// Clear pending theme after sending
+if (pendingTheme) {
+    sessionStorage.removeItem('pendingTheme');
+}
 
 //Get room history when joining
 socket.on('roomHistory', ({ room, messages }) => {
@@ -254,7 +260,7 @@ socket.on('groupMessage', ({ groupName, message }) => {
     
     // Display if this is the current chat
     if (currentChat.type === 'group' && currentChat.name === groupName) {
-        outputMessage(message);
+    outputMessage(message);
         chatMessages.scrollTop = chatMessages.scrollHeight;
     } else {
         showChatNotification(chatId, groupName, message.message, message.username);
@@ -290,7 +296,7 @@ socket.on('groupHistory', ({ groupName, messages }) => {
     if (currentChat.type === 'group' && currentChat.name === groupName) {
         chatMessages.innerHTML = '';
         messages.forEach(msg => outputMessage(msg));
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+    chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 });
 
@@ -861,10 +867,20 @@ const themeToggle = document.getElementById('theme-toggle');
 const themeIcon = document.getElementById('theme-icon');
 const html = document.documentElement;
 
-// Get saved theme or default to light
-const currentTheme = localStorage.getItem('theme') || 'light';
+// Initialize theme (will be updated from server)
+let currentTheme = 'light';
 html.setAttribute('data-theme', currentTheme);
 updateIcon(currentTheme);
+
+// Listen for theme preference from server (user-specific)
+socket.on('themePreference', ({ theme }) => {
+    if (theme === 'light' || theme === 'dark') {
+        currentTheme = theme;
+        html.setAttribute('data-theme', theme);
+        updateIcon(theme);
+        console.log(`[THEME] Received theme preference from server: ${theme}`);
+    }
+});
 
 // Toggle theme
 if (themeToggle) {
@@ -872,8 +888,10 @@ if (themeToggle) {
         const currentTheme = html.getAttribute('data-theme');
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         html.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
         updateIcon(newTheme);
+        
+        // Send theme change to server (user-specific)
+        socket.emit('changeTheme', { theme: newTheme });
     });
 }
 

@@ -1,6 +1,8 @@
 // users.js
 const users = [];
 const usernames = new Set();
+// Store user theme preferences (username -> theme)
+const userThemes = new Map();
 
 function userJoin(id, username, room) {
   const name = String(username || "").trim();
@@ -64,6 +66,8 @@ function userLeave(id) {
   if (i !== -1) {
     const [removed] = users.splice(i, 1);
     if (removed?._key) usernames.delete(removed._key);
+    // Note: We keep theme preference even after user leaves
+    // so it persists across sessions
     return removed;
   }
 }
@@ -73,4 +77,36 @@ function getRoomUsers(room) {
 }
 function getAllUsers() { return users; }
 
-module.exports = { userJoin, getCurrentUser, userLeave, getRoomUsers, getAllUsers };
+function getUserTheme(username) {
+  const key = String(username || "").toLowerCase().trim();
+  return userThemes.get(key); // Returns undefined if not set, not 'light'
+}
+
+function hasUserTheme(username) {
+  const key = String(username || "").toLowerCase().trim();
+  return userThemes.has(key);
+}
+
+function setUserTheme(username, theme) {
+  const key = String(username || "").toLowerCase().trim();
+  if (theme === 'light' || theme === 'dark') {
+    userThemes.set(key, theme);
+  }
+}
+
+function removeUserTheme(username) {
+  const key = String(username || "").toLowerCase().trim();
+  userThemes.delete(key);
+}
+
+module.exports = { 
+  userJoin, 
+  getCurrentUser, 
+  userLeave, 
+  getRoomUsers, 
+  getAllUsers,
+  getUserTheme,
+  hasUserTheme,
+  setUserTheme,
+  removeUserTheme
+};

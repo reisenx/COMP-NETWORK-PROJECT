@@ -105,33 +105,47 @@
 			});
 		</script>
 		<script>
-			// Theme toggle functionality
+			// Theme toggle functionality for join page
+			// Note: Theme preference will be set when user joins the chat room
 			const themeToggle = document.getElementById('theme-toggle');
 			const themeIcon = document.getElementById('theme-icon');
 			const html = document.documentElement;
 			
-			// Get saved theme or default to light
-			const currentTheme = localStorage.getItem('theme') || 'light';
+			// Default to light theme on join page
+			let currentTheme = 'light';
 			html.setAttribute('data-theme', currentTheme);
 			updateIcon(currentTheme);
 			
-			// Toggle theme
-			themeToggle.addEventListener('click', () => {
-				const currentTheme = html.getAttribute('data-theme');
-				const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-				html.setAttribute('data-theme', newTheme);
-				localStorage.setItem('theme', newTheme);
-				updateIcon(newTheme);
-			});
+			// Toggle theme (will be saved when user joins)
+			if (themeToggle) {
+				themeToggle.addEventListener('click', () => {
+					const currentTheme = html.getAttribute('data-theme');
+					const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+					html.setAttribute('data-theme', newTheme);
+					updateIcon(newTheme);
+					// Store temporarily in sessionStorage for join page
+					sessionStorage.setItem('pendingTheme', newTheme);
+				});
+			}
 			
 			function updateIcon(theme) {
-				if (theme === 'dark') {
-					themeIcon.classList.remove('fa-moon');
-					themeIcon.classList.add('fa-sun');
-				} else {
-					themeIcon.classList.remove('fa-sun');
-					themeIcon.classList.add('fa-moon');
+				if (themeIcon) {
+					if (theme === 'dark') {
+						themeIcon.classList.remove('fa-moon');
+						themeIcon.classList.add('fa-sun');
+					} else {
+						themeIcon.classList.remove('fa-sun');
+						themeIcon.classList.add('fa-moon');
+					}
 				}
+			}
+			
+			// Check for pending theme from previous session
+			const pendingTheme = sessionStorage.getItem('pendingTheme');
+			if (pendingTheme && (pendingTheme === 'light' || pendingTheme === 'dark')) {
+				currentTheme = pendingTheme;
+				html.setAttribute('data-theme', pendingTheme);
+				updateIcon(pendingTheme);
 			}
 		</script>
 	</body>
