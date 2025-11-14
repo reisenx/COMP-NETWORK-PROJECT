@@ -1,5 +1,8 @@
-# Uasge
-npm install,
-npm run dev
+# Usage
 
-go to localhost:3000
+```bash
+npm install
+npm run dev
+```
+
+go to `localhost:3000`
